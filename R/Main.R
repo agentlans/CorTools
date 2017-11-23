@@ -65,6 +65,7 @@ p_value <- function(observed, null.values, alternative="two.sided") {
 #' @return data frame with components:
 #'    Cor (correlation of each row in x with y)
 #'    P (P value that correlation is significantly different from 0)
+#' @importFrom stats p.adjust
 #' @export
 cor_test <- function(x, y, n=1000, ...) {
   # Observed value of correlation
@@ -80,7 +81,8 @@ cor_test <- function(x, y, n=1000, ...) {
   #
   data.frame(
     Cor = observed,
-    P = p.values
+    P = p.values,
+    FDR = p.adjust(p.values, "fdr")
   )
 }
 # Example:
@@ -139,6 +141,7 @@ fisher_z <- function(r) {
 #' Cor1 (correlations in samples marked TRUE),
 #' Cor2 (correlations in samples marked FALSE)
 #' P value that difference in correlations is significant
+#' @importFrom stats p.adjust
 #' @export
 two_cor_test <- function(x, y, x.classes, n=1000, ...) {
   if (!is.logical(x.classes)) {
@@ -174,8 +177,9 @@ two_cor_test <- function(x, y, x.classes, n=1000, ...) {
   # Output correlations of genes in two classes and P value
   data.frame(
     Cor1 = cor2(x[,x.classes], y[x.classes]),
-    Cor2 = cor2(y[,!x.classes], y[!x.classes]),
-    P = p.values
+    Cor2 = cor2(x[,!x.classes], y[!x.classes]),
+    P = p.values,
+    FDR = p.adjust(p.values, "fdr")
   )
 }
 
@@ -204,6 +208,7 @@ rlm_coef <- function(x, y) {
 #' @return data frame containing
 #'    Coef coefficients from linear regression
 #'    P P values that different from 0
+#' @importFrom stats p.adjust
 #' @export
 rlm_coef_test <- function(x, y, n=1000) {
   # Calculated the observed coefficients and under null hypothesis
@@ -217,7 +222,8 @@ rlm_coef_test <- function(x, y, n=1000) {
   })
   data.frame(
     Coef = observed,
-    P = p
+    P = p,
+    FDR = p.adjust(p, "fdr")
   )
 }
 # rlm_coef_test(t(iris[,1:3]), iris[,4])
@@ -253,10 +259,10 @@ plot_resample <- function(results, results2=NULL) {
   if (is.null(results2)) {
     # There is only one sample
     graphable <- reshape::melt(results)
-    x1 <- graphable$X1
+    x1 <- factor(graphable$X1)
     value <- graphable$value
     ggplot2::ggplot(graphable, ggplot2::aes(x1, value)) +
-      ggplot2::geom_boxplot() +
+      ggplot2::geom_boxplot(width=0.5) +
       ggplot2::geom_hline(ggplot2::aes(yintercept=0), linetype="dashed")
   } else {
     # Melt each dataset separately and record where they came from
@@ -266,11 +272,11 @@ plot_resample <- function(results, results2=NULL) {
     m2$Dataset <- 2
     graphable <- rbind(m1, m2)
     # Make plot
-    x1 <- graphable$X1
+    x1 <- factor(graphable$X1)
     value <- graphable$value
-    dataset <- factor(graphable$dataset)
+    dataset <- factor(graphable$Dataset)
     ggplot2::ggplot(graphable, ggplot2::aes(x1, value)) +
-      ggplot2::geom_boxplot(ggplot2::aes(fill=dataset)) +
+      ggplot2::geom_boxplot(ggplot2::aes(fill=dataset), width=0.5) +
       ggplot2::geom_hline(ggplot2::aes(yintercept=0), linetype="dashed")
   }
 }
@@ -291,6 +297,7 @@ plot_resample <- function(results, results2=NULL) {
 #'    Coef1 the coefficients from first model
 #'    Coef2 the coefficients from the second model
 #'    P P value that coefficients differ between two models
+#' @importFrom stats p.adjust
 #' @export
 two_rlm_coef_test <- function(x1, x2, y, n=1000) {
   # Given y, returns difference between coefficients of models
@@ -313,7 +320,8 @@ two_rlm_coef_test <- function(x1, x2, y, n=1000) {
   data.frame(
     Coef1 = rlm_coef(x1, y)[names(observed)],
     Coef2 = rlm_coef(x2, y)[names(observed)],
-    P = p.values
+    P = p.values,
+    FDR = p.adjust(p.values, "fdr")
   )
 }
 #two_rlm_coef_test(t(iris[,1:2]), t(iris[,1:3]), iris[,4])
