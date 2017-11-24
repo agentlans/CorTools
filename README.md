@@ -32,15 +32,15 @@ cor_test(golub[1:10,], golub[11,])
 
 # Plot resampled correlations
 library(ggplot2)
-plot_resample(cor_resample(golub[1:10,], golub[11,])) +
+plot_resample(cor_bootstrap(golub[1:10,], golub[11,])) +
     scale_x_discrete("Gene") + scale_y_continuous("Correlation with 11th gene")
 
 # Test whether correlations with gene 11 differ in AML vs. ALL
 two_cor_test(golub[1:10,], golub[11,], golub.cl == 1)
 
 # Plot correlations in the two classes
-r1 <- cor_resample(golub[1:10, golub.cl==1], golub[11, golub.cl==1])
-r2 <- cor_resample(golub[1:10, golub.cl==0], golub[11, golub.cl==0])
+r1 <- cor_bootstrap(golub[1:10, golub.cl==1], golub[11, golub.cl==1])
+r2 <- cor_bootstrap(golub[1:10, golub.cl==0], golub[11, golub.cl==0])
 plot_resample(r1, r2) + scale_x_discrete("Gene") +
     scale_y_continuous("Correlation with 11th gene")
 ```
