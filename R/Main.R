@@ -78,12 +78,14 @@ cor_test <- function(x, y, n=1000, ...) {
   p.values <- sapply(1:nrow(x), function(i) {
     p_value(observed[i], null.mat[i,])
   })
-  #
-  data.frame(
-    Cor = observed,
+  # Show confidence intervals and P values
+  stat.df <- bootstrap_ci(
+    observed, cor_bootstrap(x, y, n=n, ...))
+  p.df <- data.frame(
     P = p.values,
     FDR = p.adjust(p.values, "fdr")
   )
+  cbind(stat.df, p.df)
 }
 # Example:
 #library(multtest)
@@ -92,36 +94,31 @@ cor_test <- function(x, y, n=1000, ...) {
 #y <- golub[1,]
 #cor_test(x, y)
 
-#' Estimates correlations by taking random subsets of original data and correlating them with y
+#' Estimates correlations with y using bootstrapping
 #' @param x matrix of x values
 #' @param y y values to be correlated against x
-#' @param frac fraction of samples in x to draw
 #' @param n number of resampling trials
 #' @param ... extra arguments to pass to cor
-#' @return resampled correlations
+#' @return resampled correlations where each column represents a resampling
 #' @export
-cor_resample <- function(x, y, frac=0.5, n=1000, ...) {
-  if (frac*ncol(x) <= 3) {
+cor_bootstrap <- function(x, y, n=1000, ...) {
+  if (ncol(x) <= 3) {
     warning("Very low number of samples in resampling. Might wish to have more samples or increase resampling fraction.")
   }
   # Do resampling
   resampled.cor <- do.call(cbind, lapply(1:n, function(dummy) {
     # Choose random samples and correlate
-    chosen.col <- sample(1:ncol(x), ceiling(frac * ncol(x)))
+    chosen.col <- sample(1:ncol(x), ncol(x), replace=TRUE)
     cor2(x[,chosen.col], y[chosen.col], ...)
   }))
-  # Calculate quantiles on resampled values
-  #apply(resampled.cor, 1, function(x) {
-  #  quantile(x, c(0.025, 0.975))
-  #})
   # Return the resampled correlations
   resampled.cor
 }
-#library(multtest)
-#data(golub)
-#x <- golub[-1,]
-#y <- golub[1,]
-#foo <- cor_resample(x, y)
+# library(multtest)
+# data(golub)
+# x <- golub[-1,]
+# y <- golub[1,]
+# foo <- cor_bootstrap(x, y)
 
 #' Transform correlation values using Fisher's z transform
 #' @param r correlation
@@ -174,13 +171,20 @@ two_cor_test <- function(x, y, x.classes, n=1000, ...) {
   p.values <- sapply(1:nrow(x), function(i) {
     p_value(observed[i], null.values[i,])
   })
+  # Correlation results for C1
+  c1.results <- cor_test(x[,x.classes], y[x.classes], ...)
+  colnames(c1.results) <- paste0("Cor1_", colnames(c1.results))
+  c2.results <- cor_test(x[,!x.classes], y[!x.classes], ...)
+  colnames(c2.results) <- paste0("Cor2_", colnames(c2.results))
+
   # Output correlations of genes in two classes and P value
-  data.frame(
-    Cor1 = cor2(x[,x.classes], y[x.classes]),
-    Cor2 = cor2(x[,!x.classes], y[!x.classes]),
-    P = p.values,
-    FDR = p.adjust(p.values, "fdr")
-  )
+  cbind(
+    c1.results,
+    c2.results,
+    data.frame(
+      P = p.values,
+      FDR = p.adjust(p.values, "fdr")
+    ))
 }
 
 #' Fits y to x using robust linear regression and returns regression coefficients
@@ -228,24 +232,44 @@ rlm_coef_test <- function(x, y, n=1000) {
 }
 # rlm_coef_test(t(iris[,1:3]), iris[,4])
 
-#' Returns robust linear regression coefficients by resampling
+#' Returns robust linear regression coefficients by bootstrapping
 #' @param x dataset where rows represent genes, columns represent samples
 #' @param y values for each sample in x
-#' @param frac fraction of samples to use in resample
 #' @param n number of resamples
 #' @return matrix of resamples
 #' @export
-rlm_coef_resample <- function(x, y, frac=0.5, n=1000) {
+rlm_coef_bootstrap <- function(x, y, n=1000) {
   do.call(cbind, lapply(1:n, function(dummy) {
     # Draw random samples and get coefficients
-    chosen <- sample(1:ncol(x), ceiling(frac*ncol(x)))
+    chosen <- sample(1:ncol(x), ncol(x), replace=TRUE)
     rlm_coef(x[,chosen], y[chosen])
   }))
 }
 # Example
-#foo <- rlm_coef_resample(t(iris[,1:3]), iris[,4])
+#foo <- rlm_coef_bootstrap(t(iris[,1:3]), iris[,4])
+#library(reshape)
 #boxplot(value~X1, data=melt(foo))
 #abline(h=0)
+
+#' Estimates confidence interval based on bootstrap results
+#' @param point.est vector of point estimates (each element represents gene)
+#' @param bootstrap.resamples matrix of resampled values using bootstrap (each column is a replicate)
+#' @param alpha significance level
+#' @return data frame containing:
+#'     Estimate: point estimates of the statistic
+#'     Lower: lower bound of confidence interval
+#'     Upper: upper bound of confidence interval
+#' @importFrom stats quantile
+#' @export
+bootstrap_ci <- function(point.est, bootstrap.resamples, alpha=0.05) {
+  upper.quantile <- apply(bootstrap.resamples, 1, function(x) quantile(x, 1-alpha/2))
+  lower.quantile <- apply(bootstrap.resamples, 1, function(x) quantile(x, alpha/2))
+  # This is pivot confidence interval
+  data.frame(
+    Estimate=point.est,
+    Lower=2*point.est - upper.quantile,
+    Upper=2*point.est - lower.quantile)
+}
 
 #' Plots statistics resampled from dataset
 #' @param results a matrix where each row represents gene, each column represents resampling trial
@@ -280,11 +304,11 @@ plot_resample <- function(results, results2=NULL) {
       ggplot2::geom_hline(ggplot2::aes(yintercept=0), linetype="dashed")
   }
 }
-# g <- plot_resample(rlm_coef_resample(t(iris[,1:3]), iris[,4]))
+# g <- plot_resample(rlm_coef_bootstrap(t(iris[,1:3]), iris[,4]))
 # g + scale_x_discrete("Variable") + scale_y_continuous("Coefficient")
 #
-# results <- rlm_coef_resample(t(iris[,1:3]), iris[,4])
-# results2 <- rlm_coef_resample(t(iris[,1:3]), iris[,4])
+# results <- rlm_coef_bootstrap(t(iris[,1:3]), iris[,4])
+# results2 <- rlm_coef_bootstrap(t(iris[,1:3]), iris[,4])
 # plot_resample(results, results2)
 
 
