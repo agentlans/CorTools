@@ -48,8 +48,8 @@ p_value <- function(observed, null.values, alternative="two.sided") {
   valid.values <- stats::na.omit(null.values)
   n <- length(valid.values)
   if (alternative == "two.sided") {
-    2 * (min(sum(observed >= null.values),
-            sum(observed <= null.values)) + 1) / (n + 1)
+    (2 * (min(sum(observed >= null.values),
+            sum(observed <= null.values))) + 1) / (n + 2)
   } else {
     stop("Not implemented yet. Please use two sided hypothesis only.")
   }
@@ -220,15 +220,17 @@ rlm_coef_test <- function(x, y, n=1000) {
   null.values <- do.call(cbind, lapply(1:n, function(dummy) {
     rlm_coef(x, sample(y))
   }))
-  # P values
+  # P values that coefficients not equal 0 (by permuting samples)
   p <- sapply(1:(nrow(x)+1), function(i) {
     p_value(observed[i], null.values[i,])
   })
-  data.frame(
-    Coef = observed,
-    P = p,
-    FDR = p.adjust(p, "fdr")
-  )
+  # Get confidence intervals for coefficients (using bootstrap)
+  results <- bootstrap_ci(observed, rlm_coef_bootstrap(x, y, n=n))
+  cbind(results,
+        data.frame(
+          P = p,
+          FDR = p.adjust(p, "fdr")
+        ))
 }
 # rlm_coef_test(t(iris[,1:3]), iris[,4])
 
@@ -262,8 +264,8 @@ rlm_coef_bootstrap <- function(x, y, n=1000) {
 #' @importFrom stats quantile
 #' @export
 bootstrap_ci <- function(point.est, bootstrap.resamples, alpha=0.05) {
-  upper.quantile <- apply(bootstrap.resamples, 1, function(x) quantile(x, 1-alpha/2))
-  lower.quantile <- apply(bootstrap.resamples, 1, function(x) quantile(x, alpha/2))
+  upper.quantile <- apply(bootstrap.resamples, 1, function(x) quantile(x, 1-alpha/2, na.rm=TRUE))
+  lower.quantile <- apply(bootstrap.resamples, 1, function(x) quantile(x, alpha/2, na.rm=TRUE))
   # This is pivot confidence interval
   data.frame(
     Estimate=point.est,
@@ -340,13 +342,21 @@ two_rlm_coef_test <- function(x1, x2, y, n=1000) {
   p.values <- sapply(1:length(observed), function(i) {
     p_value(observed[i], null.stats[i,])
   })
+  # Also do the coefficient tests for each dataset separately
+  r1 <- rlm_coef_test(x1, y, n=n)[names(observed)]
+  r1$FDR <- p.adjust(r1$P, "fdr") # Readjust P values because fewer variables
+  colnames(r1) <- paste0("Model1_", colnames(r1))
+
+  r2 <- rlm_coef_test(x2, y, n=n)[names(observed)]
+  r2$FDR <- p.adjust(r2$P, "fdr") # Readjust P values because fewer variables
+  colnames(r2) <- paste0("Model2_", colnames(r2))
+
   # Return coefficients of the two models and P value
-  data.frame(
-    Coef1 = rlm_coef(x1, y)[names(observed)],
-    Coef2 = rlm_coef(x2, y)[names(observed)],
-    P = p.values,
-    FDR = p.adjust(p.values, "fdr")
-  )
+  rbind(r1, r2,
+        data.frame(
+          P = p.values,
+          FDR = p.adjust(p.values, "fdr")
+        ))
 }
 #two_rlm_coef_test(t(iris[,1:2]), t(iris[,1:3]), iris[,4])
 
