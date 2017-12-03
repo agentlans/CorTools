@@ -39,7 +39,7 @@ p_value <- function(observed, null.values, alternative="two.sided") {
     stop("There must be exactly one observed value for the statistic.")
   }
   if (is.na(observed)) {
-    stop("Observed value can't be NA.")
+    return(NA)
   }
   if (!is.vector(null.values)) {
     stop("Null values must be vector.")
@@ -128,6 +128,56 @@ fisher_z <- function(r) {
   0.5 * log((1+r+1E-5)/(1-r+1E-5))
 }
 
+#' Returns difference between the Fisher transformed correlations between x and y
+#'     in two classes of samples
+#' @param x matrix of x values (rows = genes, columns = samples)
+#' @param y y values to correlate against (same length as number of samples in x)
+#' @param x.classes vector of TRUE and FALSE values for each sample in x, respectively
+#' @param ... extra parameters to pass to cor2
+#' @return vector of difference between correlations in two sets of samples (TRUE group - FALSE group)
+two_cor <- function(x, y, x.classes, ...) {
+  if (!is.logical(x.classes)) {
+    stop("Samples classes must be a vector of TRUE or FALSE values.")
+  }
+  if (any(is.na(x.classes))) {
+    warning("NA in the sample classes may produce unpredictable results.")
+  }
+  if (length(x.classes) != ncol(x)) {
+    stop("Samples classes must be same length as number of samples.")
+  }
+  # Separate data into to two classes
+  x1 <- x[,x.classes]
+  y1 <- y[x.classes]
+  x2 <- x[,!x.classes]
+  y2 <- y[!x.classes]
+  # Calculate correlations separately
+  # Return difference between Fisher's z transforms
+  z1 <- fisher_z(cor2(x1, y1, ...))
+  z2 <- fisher_z(cor2(x2, y2, ...))
+  z1 - z2
+}
+
+#' Bootstrap estimates of difference between two Fisher z-transformed correlations
+#' @param x matrix of x values (rows = genes, columns = samples)
+#' @param y values to correlate against (must be same length as number of samples in x)
+#' @param x.classes vector of TRUE of FALSE values for every sample in x
+#' @param n number of trials
+#' @param ... parameters to pass to cor2
+#' @return matrix of bootstrap estimates of differences in correlations.
+#'     Sign convention is TRUE group - FALSE group.
+#'     Each column represents bootstrap iteration
+two_cor_bootstrap <- function(x, y, x.classes, n=1000, ...) {
+  do.call(cbind, lapply(1:n, function(dummy) {
+    true.col <- which(x.classes == TRUE)
+    false.col <- which(x.classes == FALSE)
+    # Resample from TRUE and FALSE columns with replacement
+    selected <- c(sample(true.col, length(true.col), replace=TRUE),
+                  sample(false.col, length(false.col), replace=TRUE))
+    # Compute differences in correlations on resampled data frame
+    two_cor(x[,selected], y[selected], x.classes[selected], ...)
+  }))
+}
+
 #' Tests hypothesis that correlation of x with y differs in two sample classes using permutation test
 #' @param x matrix of x values (rows = genes, columns = samples)
 #' @param y y values to correlate against (must be same length as number of samples in x)
@@ -141,27 +191,7 @@ fisher_z <- function(r) {
 #' @importFrom stats p.adjust
 #' @export
 two_cor_test <- function(x, y, x.classes, n=1000, ...) {
-  if (!is.logical(x.classes)) {
-    stop("Samples classes must be a vector of TRUE or FALSE values.")
-  }
-  if (any(is.na(x.classes))) {
-    warning("NA in the sample classes may produce unpredictable results.")
-  }
-  if (length(x.classes) != ncol(x)) {
-    stop("Samples classes must be same length as number of samples.")
-  }
-  cor.diff <- function(x.classes) {
-    # Separate data into to two classes
-    x1 <- x[,x.classes]
-    y1 <- y[x.classes]
-    x2 <- x[,!x.classes]
-    y2 <- y[!x.classes]
-    # Calculate correlations separately
-    # Return difference between Fisher's z transforms
-    z1 <- fisher_z(cor2(x1, y1, ...))
-    z2 <- fisher_z(cor2(x2, y2, ...))
-    z1 - z2
-  }
+  cor.diff <- function(x.classes) two_cor(x, y, x.classes, ...)
   # Get the actual difference in correlations and under null hypothesis
   observed <- cor.diff(x.classes)
   null.values <- do.call(cbind, lapply(1:n, function(dummy) {
@@ -182,6 +212,7 @@ two_cor_test <- function(x, y, x.classes, n=1000, ...) {
     c1.results,
     c2.results,
     data.frame(
+      DeltaZ = observed,
       P = p.values,
       FDR = p.adjust(p.values, "fdr")
     ))
