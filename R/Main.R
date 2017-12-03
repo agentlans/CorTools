@@ -135,6 +135,7 @@ fisher_z <- function(r) {
 #' @param x.classes vector of TRUE and FALSE values for each sample in x, respectively
 #' @param ... extra parameters to pass to cor2
 #' @return vector of difference between correlations in two sets of samples (TRUE group - FALSE group)
+#' @export
 two_cor <- function(x, y, x.classes, ...) {
   if (!is.logical(x.classes)) {
     stop("Samples classes must be a vector of TRUE or FALSE values.")
@@ -166,6 +167,7 @@ two_cor <- function(x, y, x.classes, ...) {
 #' @return matrix of bootstrap estimates of differences in correlations.
 #'     Sign convention is TRUE group - FALSE group.
 #'     Each column represents bootstrap iteration
+#' @export
 two_cor_bootstrap <- function(x, y, x.classes, n=1000, ...) {
   do.call(cbind, lapply(1:n, function(dummy) {
     true.col <- which(x.classes == TRUE)
