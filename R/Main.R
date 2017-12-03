@@ -347,6 +347,104 @@ plot_resample <- function(results, results2=NULL) {
 # plot_resample(results, results2)
 
 
+#' Gets the slope of regression of y vs. x
+#' @param x matrix where each row is to be regressed vs. y
+#' @param y vector of numbers
+#' @importFrom MASS rlm
+#' @return Coefficients of regression from each row in x vs. y
+#' @export
+rlm_beta <- function(x, y) {
+  if (ncol(x) != length(y)) {
+    stop("Must have as many samples in y as in x.")
+  }
+  # Regress each row vs. y and get the coefficient
+  apply(x, 1, function(x.row) {
+    coef(MASS::rlm(y ~ x.row))[2]
+  })
+}
+# rlm_beta(t(iris[,1:3]), iris[,4])
+
+#' Gets bootstrap estimates of slopes of y vs. x
+#' @param x matrix where each row is to be regressed vs. y
+#' @param y vector of numbers (length same as columns of x)
+#' @param n number of trials
+#' @return matrix where each row represents slopes for each row in x, each column represents a trial
+#' @export
+rlm_beta_bootstrap <- function(x, y, n=1000) {
+  do.call(cbind, lapply(1:n, function(dummy) {
+    # Sample columns with replacement
+    ind <- sample(1:ncol(x), ncol(x), replace=TRUE)
+    rlm_beta(x[,ind], y[ind])
+  }))
+}
+
+#' Tests whether slopes of linear regressions equal 0 using permutation test
+#' @param x matrix where each row is to be regressed vs. y
+#' @param y vector of numbers (length same as columns in x)
+#' @param n number of trials
+#' @importFrom stats p.adjust
+#' @return Data frame of observed value, upper and lower 95% confidence intervals, and P values
+rlm_beta_test <- function(x, y, n=1000) {
+  observed <- rlm_beta(x, y)
+  # Scramble y and calculate slope
+  null.values <- do.call(cbind, lapply(1:n, function(dummy) {
+    rlm_beta(x, sample(y))
+  }))
+  # Get P values
+  p <- sapply(1:length(observed), function(i) {
+    p_value(observed[i], null.values[i,])
+  })
+  # Bootstrap confidence intervals
+  temp <- bootstrap_ci(observed, rlm_beta_bootstrap(x, y, n))
+  temp$P <- p
+  temp$FDR <- p.adjust(temp$P, "fdr")
+  temp
+}
+
+#' Tests whether the slopes of y vs. x is the same in two sample groups
+#' @param x matrix where each column contains a sample and each row is to be regressed vs. y
+#' @param y values to be regressed against
+#' @param x.class class of each sample in x, respectively (can be TRUE or FALSE for each sample)
+#' @param n number of permutations
+#' @return Data frame of bootstrap estimates for each sample group and P value of difference
+#'     between two sample groups
+#' @importFrom stats p.adjust
+#' @export
+two_rlm_beta_test <- function(x, y, x.class, n=1000) {
+  # Compute difference between slopes in the two classes
+  beta_diff <- function(x.class, x.use=x, y.use=y) {
+    beta1 <- rlm_beta(x.use[,x.class], y.use[x.class])
+    beta2 <- rlm_beta(x.use[,!x.class], y.use[!x.class])
+    beta1 - beta2
+  }
+  # Compute actual difference in slopes
+  observed <- beta_diff(x.class)
+  null.values <- do.call(cbind, lapply(1:n, function(dummy) {
+    beta_diff(sample(x.class))
+  }))
+  # Get P value of difference
+  p <- sapply(1:length(observed), function(i) {
+    p_value(observed[i], null.values[i,])
+  })
+  # Get bootstrapped values for difference
+  bootstrapped <- do.call(cbind, lapply(1:n, function(dummy) {
+    ind <- sample(1:ncol(x), ncol(x), replace=TRUE)
+    beta_diff(x.class[ind], x[,ind], y[ind])
+  }))
+  beta.diff <- bootstrap_ci(observed, bootstrapped)
+  # Do individual tests on the betas
+  beta.test1 <- rlm_beta_test(x[,x.class], y[x.class], n)
+  beta.test2 <- rlm_beta_test(x[,!x.class], y[!x.class], n)
+  colnames(beta.test1) <- paste0("Beta1_", colnames(beta.test1))
+  colnames(beta.test2) <- paste0("Beta2_", colnames(beta.test2))
+  # Combine together
+  temp <- cbind(beta.test1, beta.test2, beta.diff)
+  temp$P <- p
+  temp$FDR <- p.adjust(p, "fdr")
+  temp
+}
+
+
 #' Compares coefficients from two robust linear models using permutation test
 #' @param x1 matrix where rows represent predictors and columns represent samples
 #' @param x2 exactly like x1 but for a separate model
@@ -357,8 +455,7 @@ plot_resample <- function(results, results2=NULL) {
 #'    Coef2 the coefficients from the second model
 #'    P P value that coefficients differ between two models
 #' @importFrom stats p.adjust
-#' @export
-two_rlm_coef_test <- function(x1, x2, y, n=1000) {
+two_rlm_coef_test0 <- function(x1, x2, y, n=1000) {
   # Given y, returns difference between coefficients of models
   # built using x1 and those built using x2
   coef.diff <- function(y) {
