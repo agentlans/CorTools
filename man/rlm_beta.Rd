@@ -2,18 +2,18 @@
 % Please edit documentation in R/Main.R
 \name{rlm_beta}
 \alias{rlm_beta}
-\title{Gets the slope of regression of y vs. x}
+\title{Fits linear model to predict y using each row in x one at a time. Returns coefficients of fit.}
 \usage{
 rlm_beta(x, y)
 }
 \arguments{
-\item{x}{matrix where each row is to be regressed vs. y}
+\item{x}{matrix whose rows are to be regressed vs. y}
 
 \item{y}{vector of numbers}
 }
 \value{
-Coefficients of regression from each row in x vs. y
+slopes of the robust linear model fits of y vs. each variable in x
 }
 \description{
-Gets the slope of regression of y vs. x
+Fits linear model to predict y using each row in x one at a time. Returns coefficients of fit.
 }

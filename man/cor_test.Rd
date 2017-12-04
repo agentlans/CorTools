@@ -2,24 +2,25 @@
 % Please edit documentation in R/Main.R
 \name{cor_test}
 \alias{cor_test}
-\title{Permutation test on correlation between x and y}
+\title{Correlation between rows in x vs. y}
 \usage{
 cor_test(x, y, n = 1000, ...)
 }
 \arguments{
-\item{x}{matrix of x values (rows = genes, columns = samples)}
+\item{x}{matrix whose rows to be correlated with y}
 
-\item{y}{vector of y values to be correlated with x}
+\item{y}{vector of numbers}
 
-\item{n}{number of trials for permutation test}
+\item{n}{number of trials for confidence intervals and P values}
 
-\item{...}{extra parameters to pass into cor function}
+\item{...}{extra arguments to pass to cor function}
 }
 \value{
-data frame with components:
-   Cor (correlation of each row in x with y)
-   P (P value that correlation is significantly different from 0)
+data frame of correlations, confidence intervals, P value, false discovery rate
 }
 \description{
-Permutation test on correlation between x and y
+Correlation between rows in x vs. y
+}
+\examples{
+cor_test(t(iris[,1:3]), iris[,4])
 }

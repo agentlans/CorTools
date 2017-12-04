@@ -17,3 +17,6 @@ coefficients from robust linear regression
 \description{
 Fits y to x using robust linear regression and returns regression coefficients
 }
+\examples{
+rlm_coef(t(iris[,1:3]), iris[,4])
+}

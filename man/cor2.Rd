@@ -2,20 +2,20 @@
 % Please edit documentation in R/Main.R
 \name{cor2}
 \alias{cor2}
-\title{Computes the correlation of each gene with vector of y values}
+\title{Correlation between rows in x vs. y}
 \usage{
 cor2(x, y, ...)
 }
 \arguments{
-\item{x}{matrix of x values (rows = genes, columns = samples)}
+\item{x}{matrix whose rows are to be correlated with y}
 
-\item{y}{y values (vector with as many samples as x)}
+\item{y}{vector of numbers}
 
-\item{...}{extra arguments to pass into correlation function}
+\item{...}{extra arguments to pass to cor function}
 }
 \value{
-matrix of correlations where each row represents correlation of each gene with y
+correlation between each row and y
 }
 \description{
-Computes the correlation of each gene with vector of y values
+Correlation between rows in x vs. y
 }

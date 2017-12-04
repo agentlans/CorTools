@@ -7,8 +7,7 @@ Maintainer: Alan Tseng <alan.tseng@utoronto.ca>
 Description: Tools for permutation tests on correlation and regression.
 Imports:
     MASS,
-    ggplot2,
-    reshape
+    boot
 License: GPL-3
 Encoding: UTF-8
 LazyData: true

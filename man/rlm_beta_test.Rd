@@ -2,20 +2,23 @@
 % Please edit documentation in R/Main.R
 \name{rlm_beta_test}
 \alias{rlm_beta_test}
-\title{Tests whether slopes of linear regressions equal 0 using permutation test}
+\title{Fits linear model to predict y using each row in x and tests whether each slope is significant.}
 \usage{
 rlm_beta_test(x, y, n = 1000)
 }
 \arguments{
-\item{x}{matrix where each row is to be regressed vs. y}
+\item{x}{matrix whose rows are to be regressed vs. y}
 
-\item{y}{vector of numbers (length same as columns in x)}
+\item{y}{vector of numbers}
 
-\item{n}{number of trials}
+\item{n}{number of trials for bootstrap and confidence intervals}
 }
 \value{
-Data frame of observed value, upper and lower 95% confidence intervals, and P values
+slopes of each row in x vs. y, confidence intervals, and P values
 }
 \description{
-Tests whether slopes of linear regressions equal 0 using permutation test
+Fits linear model to predict y using each row in x and tests whether each slope is significant.
+}
+\examples{
+rlm_beta_test(t(iris[,1:3]), iris[,4], n=100)
 }

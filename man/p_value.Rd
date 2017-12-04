@@ -19,3 +19,6 @@ p value of observed statistic compared to null distribution
 \description{
 Returns P value of observed value compared to values from null distribution
 }
+\examples{
+p_value(1.97, rnorm(1E6))
+}
