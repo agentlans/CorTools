@@ -359,7 +359,9 @@ rlm_beta <- function(x, y) {
   }
   # Regress each row vs. y and get the coefficient
   apply(x, 1, function(x.row) {
-    coef(MASS::rlm(y ~ x.row))[2]
+    tryCatch({
+      coef(MASS::rlm(y ~ x.row))[2]
+    }, error=function(e) NA)
   })
 }
 # rlm_beta(t(iris[,1:3]), iris[,4])
