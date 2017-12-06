@@ -28,14 +28,13 @@ cor_test <- function(x, y, n=1000, ...) {
     x <- t(matrix(x))
   }
   est <- cor2(x, y, ...)
+  # Do bootstrap
   f <- function(d, ind) {
-    cor2(t(d[ind,]), y[ind], ...)
+    return_null_if_na(
+      cor2(t(d[ind,]), y[ind], ...))
   }
   b.obj <- boot::boot(t(x), f, R=n)
-  # Get confidence intervals from bootstraps
-  ci <- do.call(rbind, lapply(1:nrow(x), function(i) {
-    boot::boot.ci(b.obj, type="perc", index=i)$percent[,4:5]
-  }))
+  ci <- get_ci(b.obj, nrow(x))
   # Permutation test to get P value
   p <- perm_test(function(y2) cor2(x, y2, ...), y, function() sample(y), n=n)
   # Show the results
@@ -75,19 +74,18 @@ rlm_coef <- function(x, y) {
 #' @return coefficients, confidence intervals, and P values from linear model fit
 #' @examples
 #' rlm_coef_test(t(iris[,1:3]), iris[,4])
-#' @importFrom boot boot boot.ci
+#' @importFrom boot boot
 #' @importFrom stats p.adjust
 #' @export
 rlm_coef_test <- function(x, y, n=1000) {
   # Bootstrap confidence intervals
   f <- function(d, ind) {
-    rlm_coef(t(d[ind,]), y[ind])
+    return_null_if_na(
+      rlm_coef(t(d[ind,]), y[ind]))
   }
+  # Do bootstrap
   b.obj <- boot::boot(t(x), f, R=n)
-  # Get confidence intervals from bootstraps
-  ci <- do.call(rbind, lapply(1:(nrow(x)+1), function(i) {
-    boot::boot.ci(b.obj, type="perc", index=i)$percent[,4:5]
-  }))
+  ci <- get_ci(b.obj, nrow(x)+1)
   # Prepare output
   est <- rlm_coef(x, y)
   lower <- ci[,1]
@@ -102,11 +100,6 @@ rlm_coef_test <- function(x, y, n=1000) {
     P=p,
     FDR=fdr
   )
-  # Make sure name is correct
-  #format.name <- function(x.names) {
-  #	gsub("^t\\(x\\)", "", names(x.names))
-  #}
-  #rownames(temp) <- format.name(rownames(temp))
   temp
 }
 
@@ -133,21 +126,20 @@ rlm_beta <- function(x, y) {
 #' @param n number of trials for bootstrap and confidence intervals
 #' @return slopes of each row in x vs. y, confidence intervals, and P values
 #' @examples
-#' rlm_beta_test(t(iris[,1:3]), iris[,4], n=100)
-#' @importFrom boot boot boot.ci
+#' rlm_beta_test(t(iris[,1:3]), iris[,4], n=200)
+#' @importFrom boot boot
 #' @importFrom stats p.adjust
 #' @export
 rlm_beta_test <- function(x, y, n=1000) {
   estimate <- rlm_beta(x, y)
   # Select random row indices and do bootstrap
   f <- function(d, ind) {
-    rlm_beta(t(d[ind,]), y[ind])
+    return_null_if_na(
+      rlm_beta(t(d[ind,]), y[ind]))
   }
+  # Bootstrap confidence intervals
   b.obj <- boot::boot(t(x), f, R=n)
-  # Get confidence intervals from bootstraps
-  ci <- do.call(rbind, lapply(1:nrow(x), function(i) {
-    boot::boot.ci(b.obj, type="perc", index=i)$percent[,4:5]
-  }))
+  ci <- get_ci(b.obj, nrow(x))
   # Permute y and fit models to get P value
   p <- perm_test(function(y) rlm_beta(x, y), y, function() sample(y), n=n)
   fdr <- stats::p.adjust(p, "fdr")
@@ -178,6 +170,28 @@ rlm_beta_diff <- function(x, y, x.class) {
   }
 }
 
+#' Given a vector, returns either vector itself or NULL if it has NA values
+#' @param x value to test
+#' @return vector itself if vector doesn't contain NA. NULL otherwise.
+return_null_if_na <- function(x) {
+  if (any(is.na(x))) {
+    NULL
+  } else {
+    x
+  }
+}
+
+#' Returns confidence interval from bootstrap object
+#' @param b.obj boot object
+#' @param num.rows how many rows in data originally used to make bootstrap
+#' @return endpoints of confidence interval
+#' @importFrom boot boot.ci
+get_ci <- function(b.obj, num.rows) {
+  do.call(rbind, lapply(1:num.rows, function(i) {
+    boot::boot.ci(b.obj, type="bca", index=i)$bca[,4:5]
+  }))
+}
+
 #' Test whether there is difference in slopes of y vs. x in two classes of samples
 #' @param x matrix where rows = genes, columns = samples
 #' @param y value to be regressed with each row
@@ -186,7 +200,7 @@ rlm_beta_diff <- function(x, y, x.class) {
 #' @return data frame of estimates, confidence intervals, P values for slopes in each sample class
 #'     as well as the difference between the classes.
 #' @note In the output, Class1 refers to the TRUE group while Class2 refers to the FALSE group.
-#' @importFrom boot boot boot.ci
+#' @importFrom boot boot
 #' @importFrom stats p.adjust
 #' @export
 rlm_beta_diff_test <- function(x, y, x.class, n=1000) {
@@ -202,14 +216,15 @@ rlm_beta_diff_test <- function(x, y, x.class, n=1000) {
   est <- rlm_beta_diff(x, y, x.class)
   # Confidence intervals
   f <- function(d, ind) {
-    rlm_beta_diff(t(d[ind,]), y[ind], x.class[ind])
+    return_null_if_na(
+      rlm_beta_diff(t(d[ind,]), y[ind], x.class[ind]))
   }
+  # Bootstrap confidence intervals
   b.obj <- boot::boot(t(x), f, R=n)
-  ci <- do.call(rbind, lapply(1:nrow(x), function(i) {
-    boot::boot.ci(b.obj, type="perc", index=i)$percent[,4:5]
-  }))
+  ci <- get_ci(b.obj, nrow(x))
   # P value by permuting classes
-  p <- perm_test(function(xc) rlm_beta_diff(x, y, xc), x.class, function() sample(x.class), n=n)
+  p <- perm_test(function(xc) rlm_beta_diff(x, y, xc), x.class,
+                 function() sample(x.class), n=n)
   # Output results
   temp <- data.frame(
     Estimate=est,
@@ -245,7 +260,7 @@ p_value <- function(observed, null.values, alternative="two.sided") {
   n <- length(valid.values)
   if (alternative == "two.sided") {
     (2 * (min(sum(observed >= null.values, na.rm=TRUE),
-              sum(observed <= null.values, na.rm=TRUE))) + 1) / (n + 2)
+              sum(observed <= null.values, na.rm=TRUE))) + 1) / (n + 1)
   } else {
     stop("Not implemented yet. Please use two sided hypothesis only.")
   }

@@ -20,5 +20,5 @@ slopes of each row in x vs. y, confidence intervals, and P values
 Fits linear model to predict y using each row in x and tests whether each slope is significant.
 }
 \examples{
-rlm_beta_test(t(iris[,1:3]), iris[,4], n=100)
+rlm_beta_test(t(iris[,1:3]), iris[,4], n=200)
 }
